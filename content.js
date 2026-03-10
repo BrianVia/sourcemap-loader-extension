@@ -10,7 +10,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     // Try to inject source map reference into the JavaScript file
     injectSourceMapReference(message.jsUrl, message.mapUrl);
     
-    console.log(`Source map available: ${message.jsUrl} -> ${message.mapUrl}`);
+    logSourceMapFound(message.jsUrl, message.mapUrl);
   }
 });
 
@@ -67,7 +67,7 @@ async function checkForSourceMap(jsUrl) {
     if (response.ok) {
       foundSourceMaps.set(jsUrl, sourceMapUrl);
       injectSourceMapReference(jsUrl, sourceMapUrl);
-      console.log(`Found source map: ${sourceMapUrl}`);
+      logSourceMapFound(jsUrl, sourceMapUrl);
     }
   } catch (error) {
     // Source map doesn't exist
@@ -94,12 +94,30 @@ function injectSourceMapReference(jsUrl, mapUrl) {
   mapElement.setAttribute('data-map-url', mapUrl);
   mapContainer.appendChild(mapElement);
   
-  // Try to add sourceMappingURL comment to console for reference
-  console.groupCollapsed(`🗺️ Source map found for: ${jsUrl.split('/').pop()}`);
-  console.log(`JavaScript: ${jsUrl}`);
-  console.log(`Source Map: ${mapUrl}`);
-  console.log(`You can manually add this line to the JS file for full dev tools support:`);
-  console.log(`//# sourceMappingURL=${mapUrl}`);
+}
+
+// Batched logging — collects discoveries and flushes them as a single collapsed group
+const pendingLogs = [];
+let flushTimer = null;
+
+function logSourceMapFound(jsUrl, mapUrl) {
+  pendingLogs.push({ jsUrl, mapUrl });
+  if (!flushTimer) {
+    flushTimer = setTimeout(flushLogs, 500);
+  }
+}
+
+function flushLogs() {
+  flushTimer = null;
+  if (pendingLogs.length === 0) return;
+
+  const entries = pendingLogs.splice(0);
+  const tableData = entries.map(({ jsUrl, mapUrl }) => ({
+    file: jsUrl.split('/').pop(),
+    sourceMap: mapUrl,
+  }));
+  console.groupCollapsed(`🗺️ Auto Source Map Loader — ${entries.length} source map${entries.length === 1 ? '' : 's'} found`);
+  console.table(tableData);
   console.groupEnd();
 }
 
@@ -110,6 +128,3 @@ window.getFoundSourceMaps = () => {
     mapUrl
   }));
 };
-
-// Also expose via console for easy access
-console.log('🗺️ Auto Source Map Loader active! Use getFoundSourceMaps() to see all discovered source maps.');

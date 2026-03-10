@@ -3,11 +3,29 @@
 const sourceMapCache = new Map();
 const processedUrls = new Set();
 
+function isLocalhostUrl(url) {
+  try {
+    const urlObj = new URL(url);
+    const hostname = urlObj.hostname;
+    return hostname === 'localhost' ||
+           hostname === '127.0.0.1' ||
+           hostname === '[::1]' ||
+           hostname.endsWith('.localhost');
+  } catch {
+    return false;
+  }
+}
+
 // Listen for JavaScript file requests
 chrome.webRequest.onBeforeRequest.addListener(
   async (details) => {
     const url = details.url;
-    
+
+    // Skip localhost URLs
+    if (isLocalhostUrl(url)) {
+      return;
+    }
+
     // Skip if already processed or not a JS file
     if (processedUrls.has(url) || !isJavaScriptFile(url)) {
       return;
@@ -37,11 +55,10 @@ chrome.webRequest.onBeforeRequest.addListener(
           // Tab might not be ready yet, ignore
         });
         
-        console.log(`Source map found for: ${url}`);
+        console.log(`🗺️ Source map found: ${url}`);
       }
     } catch (error) {
       // Source map doesn't exist or network error
-      console.log(`No source map found for: ${url}`);
     }
   },
   {
@@ -54,7 +71,12 @@ chrome.webRequest.onBeforeRequest.addListener(
 chrome.webRequest.onCompleted.addListener(
   async (details) => {
     const url = details.url;
-    
+
+    // Skip localhost URLs
+    if (isLocalhostUrl(url)) {
+      return;
+    }
+
     if (processedUrls.has(url) || !isJavaScriptFile(url)) {
       return;
     }
@@ -75,10 +97,10 @@ chrome.webRequest.onCompleted.addListener(
           mapUrl: sourceMapUrl
         }).catch(() => {});
         
-        console.log(`Source map found for: ${url}`);
+        console.log(`🗺️ Source map found: ${url}`);
       }
     } catch (error) {
-      console.log(`No source map found for: ${url}`);
+      // Source map doesn't exist or network error
     }
   },
   {
